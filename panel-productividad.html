@@ -2357,11 +2357,12 @@ function saveLS(key, val){ try{ localStorage.setItem(key, val); }catch(e){} }
 // Modelos económicos recomendados como respaldo si no se puede cargar la lista en vivo de OpenRouter
 // (precios de referencia, pueden cambiar — la lista en vivo siempre manda cuando está disponible)
 var OR_FALLBACK_MODELS = [
-  { id: "google/gemini-2.5-flash-lite", label: "google/gemini-2.5-flash-lite — muy barato, rápido, buen español" },
-  { id: "openai/gpt-4o-mini", label: "openai/gpt-4o-mini — barato, confiable" },
-  { id: "deepseek/deepseek-chat", label: "deepseek/deepseek-chat — muy barato, buena calidad" }
+  { id: "openai/gpt-4o-mini", label: "openai/gpt-4o-mini — barato, confiable, buen JSON" },
+  { id: "deepseek/deepseek-chat", label: "deepseek/deepseek-chat — muy barato, buena calidad" },
+  { id: "anthropic/claude-3-5-haiku", label: "anthropic/claude-3-5-haiku — barato, muy preciso" }
 ];
 var OR_PREFERRED_PREFIXES = ["google/gemini", "openai/gpt", "deepseek/", "mistralai/", "meta-llama/", "qwen/", "x-ai/grok"];
+var OR_EXCLUDE_PATTERN = /batch|experimental/i;
 var orModelsLoaded = false;
 
 function populateOrDatalist(models){
@@ -2382,7 +2383,9 @@ function fetchOpenRouterModels(){
     var list = (data.data || []).filter(function(m){
       var p = parseFloat(m.pricing && m.pricing.prompt);
       var c = parseFloat(m.pricing && m.pricing.completion);
-      return !isNaN(p) && !isNaN(c) && (p > 0 || c > 0);
+      if(isNaN(p) || isNaN(c) || (p === 0 && c === 0)) return false;
+      if(OR_EXCLUDE_PATTERN.test(m.id) || OR_EXCLUDE_PATTERN.test(m.name || "")) return false;
+      return true;
     });
     list.forEach(function(m){
       m._promptPerM = parseFloat(m.pricing.prompt) * 1e6;
@@ -2647,7 +2650,11 @@ function aiAnalyzeTranscriptOpenRouter(rawText, filename, apiKey, modelId){
       var data;
       try{ data = JSON.parse(t); }catch(e){ throw new Error("respuesta no válida del servidor (" + resp.status + ")"); }
       if(!resp.ok || data.error){
-        throw new Error((data.error && data.error.message) || ("HTTP " + resp.status));
+        var errMsg = (data.error && data.error.message) || ("HTTP " + resp.status);
+        if(/batch/i.test(errMsg)){
+          errMsg += " — este modelo específico no admite llamadas normales en OpenRouter. Elige otro modelo de la lista (por ejemplo openai/gpt-4o-mini) e inténtalo de nuevo.";
+        }
+        throw new Error(errMsg);
       }
       return data;
     });
