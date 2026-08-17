@@ -593,18 +593,31 @@
     <div class="card" id="import-ai-card">
       <div class="section-title">🤖 Interpretación con IA (opcional)</div>
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
-        <input type="checkbox" id="imp-use-ai"> Usar la API de Claude (Anthropic) para interpretar la transcripción — mucho más precisa que la búsqueda por palabras clave
+        <input type="checkbox" id="imp-use-ai"> Usar un modelo de IA para interpretar la transcripción — más precisa que la búsqueda por palabras clave
       </label>
       <div id="imp-ai-fields" style="display:none;margin-top:10px;">
         <div class="quick-form">
+          <div class="field small">
+            <label>Proveedor</label>
+            <select id="imp-ai-provider">
+              <option value="openrouter" selected>OpenRouter</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+            </select>
+          </div>
           <div class="field grow">
-            <label>Clave de API de Anthropic</label>
-            <input type="password" id="imp-api-key" placeholder="sk-ant-...">
+            <label id="imp-api-key-label">Clave de API de OpenRouter</label>
+            <input type="password" id="imp-api-key" placeholder="sk-or-v1-...">
           </div>
         </div>
-        <div class="empty-msg" style="margin-top:6px;">
-          Con esto activado, el texto de la transcripción se envía a la API de Claude usando tu propia clave: requiere internet y tiene un costo pequeño según tu plan de API. Tu clave se guarda solo en este navegador (nunca sale de tu computador salvo hacia Anthropic al analizar). Si dejas esto desmarcado, todo funciona 100% local, offline y gratis, con menos precisión.
+        <div class="quick-form" id="imp-or-model-wrap" style="margin-top:8px;">
+          <div class="field grow">
+            <label>Modelo (elige uno económico de la lista en vivo, o escribe el ID exacto)</label>
+            <input type="text" id="imp-or-model" list="dl-or-models" placeholder="Cargando modelos económicos de OpenRouter...">
+            <datalist id="dl-or-models"></datalist>
+          </div>
+          <button class="btn secondary btn-sm" type="button" id="imp-or-refresh" style="margin-top:19px;">🔄 Actualizar lista</button>
         </div>
+        <div class="empty-msg" id="imp-ai-hint" style="margin-top:6px;"></div>
       </div>
     </div>
 
@@ -2331,24 +2344,111 @@ function commitImport(analysis){
   importState = null;
 }
 
-/* ---------- Interpretación con IA (Claude API, opcional) ---------- */
+/* ---------- Interpretación con IA (OpenRouter o Anthropic, opcional) ---------- */
 
 var CLAUDE_API_KEY_STORAGE = "ppd_claude_api_key";
+var OPENROUTER_API_KEY_STORAGE = "ppd_openrouter_api_key";
+var OPENROUTER_MODEL_STORAGE = "ppd_openrouter_model";
+var AI_PROVIDER_STORAGE = "ppd_ai_provider";
 
-function loadApiKey(){
-  try{ return localStorage.getItem(CLAUDE_API_KEY_STORAGE) || ""; }catch(e){ return ""; }
-}
-function saveApiKey(key){
-  try{ localStorage.setItem(CLAUDE_API_KEY_STORAGE, key); }catch(e){}
+function loadLS(key){ try{ return localStorage.getItem(key) || ""; }catch(e){ return ""; } }
+function saveLS(key, val){ try{ localStorage.setItem(key, val); }catch(e){} }
+
+// Modelos económicos recomendados como respaldo si no se puede cargar la lista en vivo de OpenRouter
+// (precios de referencia, pueden cambiar — la lista en vivo siempre manda cuando está disponible)
+var OR_FALLBACK_MODELS = [
+  { id: "google/gemini-2.5-flash-lite", label: "google/gemini-2.5-flash-lite — muy barato, rápido, buen español" },
+  { id: "openai/gpt-4o-mini", label: "openai/gpt-4o-mini — barato, confiable" },
+  { id: "deepseek/deepseek-chat", label: "deepseek/deepseek-chat — muy barato, buena calidad" }
+];
+var OR_PREFERRED_PREFIXES = ["google/gemini", "openai/gpt", "deepseek/", "mistralai/", "meta-llama/", "qwen/", "x-ai/grok"];
+var orModelsLoaded = false;
+
+function populateOrDatalist(models){
+  var dl = document.getElementById("dl-or-models");
+  dl.innerHTML = models.map(function(m){
+    return '<option value="' + esc(m.id) + '">' + esc(m.label) + '</option>';
+  }).join("");
 }
 
-document.getElementById("imp-api-key").value = loadApiKey();
+function fetchOpenRouterModels(){
+  var statusHint = document.getElementById("imp-ai-hint");
+  statusHint.textContent = "Cargando modelos económicos de OpenRouter...";
+  populateOrDatalist(OR_FALLBACK_MODELS);
+  return fetch("https://openrouter.ai/api/v1/models").then(function(r){
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  }).then(function(data){
+    var list = (data.data || []).filter(function(m){
+      var p = parseFloat(m.pricing && m.pricing.prompt);
+      var c = parseFloat(m.pricing && m.pricing.completion);
+      return !isNaN(p) && !isNaN(c) && (p > 0 || c > 0);
+    });
+    list.forEach(function(m){
+      m._promptPerM = parseFloat(m.pricing.prompt) * 1e6;
+      m._complPerM = parseFloat(m.pricing.completion) * 1e6;
+      m._score = m._promptPerM + m._complPerM;
+      m._preferred = OR_PREFERRED_PREFIXES.some(function(pref){ return m.id.indexOf(pref) === 0; });
+    });
+    list.sort(function(a, b){
+      if(a._preferred !== b._preferred) return a._preferred ? -1 : 1;
+      return a._score - b._score;
+    });
+    var top = list.slice(0, 25).map(function(m){
+      return { id: m.id, label: m.id + " — $" + m._promptPerM.toFixed(2) + " / $" + m._complPerM.toFixed(2) + " por 1M tokens (entrada/salida)" };
+    });
+    if(top.length) populateOrDatalist(top);
+    orModelsLoaded = true;
+    statusHint.textContent = "Lista de modelos actualizada (" + (top.length || OR_FALLBACK_MODELS.length) + " opciones económicas). Elige uno del campo de modelo o escribe otro ID.";
+    var modelInput = document.getElementById("imp-or-model");
+    if(!modelInput.value.trim() && top.length) modelInput.value = top[0].id;
+  }).catch(function(err){
+    console.error(err);
+    statusHint.textContent = "⚠️ No se pudo cargar la lista en vivo de OpenRouter (¿sin internet?). Usando 3 sugerencias de respaldo — también puedes escribir cualquier ID de modelo copiado desde openrouter.ai/models.";
+    var modelInput = document.getElementById("imp-or-model");
+    if(!modelInput.value.trim()) modelInput.value = OR_FALLBACK_MODELS[0].id;
+  });
+}
+
+function updateAiProviderUi(){
+  var provider = document.getElementById("imp-ai-provider").value;
+  var isOr = provider === "openrouter";
+  document.getElementById("imp-or-model-wrap").style.display = isOr ? "flex" : "none";
+  document.getElementById("imp-api-key-label").textContent = isOr ? "Clave de API de OpenRouter" : "Clave de API de Anthropic";
+  document.getElementById("imp-api-key").placeholder = isOr ? "sk-or-v1-..." : "sk-ant-...";
+  document.getElementById("imp-api-key").value = isOr ? loadLS(OPENROUTER_API_KEY_STORAGE) : loadLS(CLAUDE_API_KEY_STORAGE);
+  var hint = document.getElementById("imp-ai-hint");
+  if(isOr){
+    document.getElementById("imp-or-model").value = loadLS(OPENROUTER_MODEL_STORAGE);
+    if(!orModelsLoaded) fetchOpenRouterModels();
+    else hint.textContent = "Elige un modelo económico del campo de arriba o escribe otro ID.";
+  } else {
+    hint.textContent = "Con esto activado, el texto de la transcripción se envía a la API de Claude usando tu propia clave: requiere internet y tiene un costo pequeño según tu plan.";
+  }
+}
+
 document.getElementById("imp-api-key").addEventListener("change", function(e){
-  saveApiKey(e.target.value.trim());
+  var provider = document.getElementById("imp-ai-provider").value;
+  saveLS(provider === "openrouter" ? OPENROUTER_API_KEY_STORAGE : CLAUDE_API_KEY_STORAGE, e.target.value.trim());
+});
+document.getElementById("imp-or-model").addEventListener("change", function(e){
+  saveLS(OPENROUTER_MODEL_STORAGE, e.target.value.trim());
+});
+document.getElementById("imp-or-refresh").addEventListener("click", function(){
+  orModelsLoaded = false;
+  fetchOpenRouterModels();
+});
+document.getElementById("imp-ai-provider").addEventListener("change", function(){
+  saveLS(AI_PROVIDER_STORAGE, document.getElementById("imp-ai-provider").value);
+  updateAiProviderUi();
 });
 document.getElementById("imp-use-ai").addEventListener("change", function(e){
   document.getElementById("imp-ai-fields").style.display = e.target.checked ? "block" : "none";
+  if(e.target.checked) updateAiProviderUi();
 });
+
+var savedProvider = loadLS(AI_PROVIDER_STORAGE);
+if(savedProvider) document.getElementById("imp-ai-provider").value = savedProvider;
 
 var AI_EXTRACTION_SCHEMA = {
   type: "object",
@@ -2413,7 +2513,66 @@ function buildAiPrompt(transcriptText, refDate, participants){
     + "- tareas: acciones concretas que alguien debe hacer, con prioridad (alta/media/baja) y fecha_vencimiento si se puede inferir (si no aplica, deja fecha_vencimiento como texto vacío).\n"
     + "- recordatorios: avisos puntuales (con fecha) o recurrentes (con cada_dias, ej. cada 14 días); usa tipo 'puntual' o 'recurrente'; deja fecha vacío o cada_dias en 0 según no corresponda.\n"
     + "- personas: personas mencionadas que NO estén ya en la lista de participantes conocidos, con rol, empresa, teléfono y correo si se mencionan (deja vacío lo que no se mencione).\n"
-    + "Ignora saludos, charla trivial y problemas técnicos de la llamada. Sé conciso y concreto. Responde todo en español.";
+    + "Ignora saludos, charla trivial y problemas técnicos de la llamada. Sé conciso y concreto. Responde todo en español.\n\n"
+    + "Responde ÚNICAMENTE un objeto JSON válido, sin texto adicional, sin explicaciones y sin bloques de código markdown, con exactamente esta forma:\n"
+    + '{"resumen":"string","aspectos_clave":["string"],"tareas":[{"titulo":"string","prioridad":"alta|media|baja","fecha_vencimiento":"YYYY-MM-DD o vacío"}],"recordatorios":[{"titulo":"string","tipo":"puntual|recurrente","fecha":"YYYY-MM-DD o vacío","cada_dias":0}],"personas":[{"nombre":"string","rol":"string","empresa":"string","telefono":"string","correo":"string"}]}';
+}
+
+function parseAiJsonPayload(raw){
+  var text = String(raw || "").trim();
+  var fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if(fenced) text = fenced[1].trim();
+  var start = text.indexOf("{");
+  var end = text.lastIndexOf("}");
+  if(start > 0 && end > start) text = text.slice(start, end + 1);
+  return JSON.parse(text);
+}
+
+function buildAiAnalysisResult(parsed, meta, refDate, turns, fullReadable, filename){
+  var taskCandidates = (parsed.tareas || []).map(function(t){
+    return { text: trimCandidate(t.titulo || ""), speaker: "", due: t.fecha_vencimiento || "" };
+  }).filter(function(t){ return t.text; });
+
+  var reminderCandidates = (parsed.recordatorios || []).map(function(r){
+    var isRec = r.tipo === "recurrente" && r.cada_dias;
+    return {
+      text: trimCandidate(r.titulo || ""),
+      speaker: "",
+      intervalDays: isRec ? r.cada_dias : null,
+      date: isRec ? null : (r.fecha || refDate)
+    };
+  }).filter(function(r){ return r.text; });
+
+  var keyPoints = (parsed.aspectos_clave || []).map(function(k){ return trimCandidate(k); }).filter(Boolean);
+
+  var aiPeople = (parsed.personas || []).map(function(p){
+    return {
+      name: (p.nombre || "").trim(),
+      role: p.rol || "",
+      company: p.empresa || "",
+      contact: [p.telefono, p.correo].filter(Boolean).join(" / ")
+    };
+  }).filter(function(p){ return p.name; });
+
+  var phones = uniqueMatches((parsed.personas || []).map(function(p){ return p.telefono; }).filter(Boolean));
+  var emails = uniqueMatches((parsed.personas || []).map(function(p){ return p.correo; }).filter(Boolean));
+
+  return {
+    filename: filename,
+    meta: meta,
+    refDate: refDate,
+    turns: turns,
+    fullReadable: fullReadable,
+    taskCandidates: taskCandidates.slice(0, 30),
+    reminderCandidates: reminderCandidates.slice(0, 20),
+    keyPoints: keyPoints.slice(0, 12),
+    mentions: [],
+    aiPeople: aiPeople,
+    aiSummary: parsed.resumen || "",
+    phones: phones,
+    emails: emails,
+    isAi: true
+  };
 }
 
 function aiAnalyzeTranscript(rawText, filename, apiKey){
@@ -2456,52 +2615,48 @@ function aiAnalyzeTranscript(rawText, filename, apiKey){
     }
     var textBlock = (data.content || []).filter(function(b){ return b.type === "text"; })[0];
     if(!textBlock || !textBlock.text) throw new Error("la IA no devolvió contenido interpretable");
-    var parsed = JSON.parse(textBlock.text);
+    var parsed = parseAiJsonPayload(textBlock.text);
+    return buildAiAnalysisResult(parsed, meta, refDate, turns, fullReadable, filename);
+  });
+}
 
-    var taskCandidates = (parsed.tareas || []).map(function(t){
-      return { text: trimCandidate(t.titulo || ""), speaker: "", due: t.fecha_vencimiento || "" };
-    }).filter(function(t){ return t.text; });
+function aiAnalyzeTranscriptOpenRouter(rawText, filename, apiKey, modelId){
+  var cleaned = rawText.replace(/\r\n/g, "\n");
+  var meta = parseMeetingMeta(cleaned);
+  var refDate = meta.date || todayStr();
+  var turns = parseTurns(cleaned);
+  var fullReadable = turns.length ? turnsToReadableText(turns) : cleaned.trim();
+  var prompt = buildAiPrompt(fullReadable, refDate, meta.participants);
+  var model = (modelId || "").trim() || OR_FALLBACK_MODELS[0].id;
 
-    var reminderCandidates = (parsed.recordatorios || []).map(function(r){
-      var isRec = r.tipo === "recurrente" && r.cada_dias;
-      return {
-        text: trimCandidate(r.titulo || ""),
-        speaker: "",
-        intervalDays: isRec ? r.cada_dias : null,
-        date: isRec ? null : (r.fecha || refDate)
-      };
-    }).filter(function(r){ return r.text; });
-
-    var keyPoints = (parsed.aspectos_clave || []).map(function(k){ return trimCandidate(k); }).filter(Boolean);
-
-    var aiPeople = (parsed.personas || []).map(function(p){
-      return {
-        name: (p.nombre || "").trim(),
-        role: p.rol || "",
-        company: p.empresa || "",
-        contact: [p.telefono, p.correo].filter(Boolean).join(" / ")
-      };
-    }).filter(function(p){ return p.name; });
-
-    var phones = uniqueMatches((parsed.personas || []).map(function(p){ return p.telefono; }).filter(Boolean));
-    var emails = uniqueMatches((parsed.personas || []).map(function(p){ return p.correo; }).filter(Boolean));
-
-    return {
-      filename: filename,
-      meta: meta,
-      refDate: refDate,
-      turns: turns,
-      fullReadable: fullReadable,
-      taskCandidates: taskCandidates.slice(0, 30),
-      reminderCandidates: reminderCandidates.slice(0, 20),
-      keyPoints: keyPoints.slice(0, 12),
-      mentions: [],
-      aiPeople: aiPeople,
-      aiSummary: parsed.resumen || "",
-      phones: phones,
-      emails: emails,
-      isAi: true
-    };
+  return fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": "Bearer " + apiKey
+    },
+    body: JSON.stringify({
+      model: model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.2,
+      max_tokens: 3000
+    })
+  }).then(function(resp){
+    return resp.text().then(function(t){
+      var data;
+      try{ data = JSON.parse(t); }catch(e){ throw new Error("respuesta no válida del servidor (" + resp.status + ")"); }
+      if(!resp.ok || data.error){
+        throw new Error((data.error && data.error.message) || ("HTTP " + resp.status));
+      }
+      return data;
+    });
+  }).then(function(data){
+    var choice = (data.choices || [])[0];
+    var content = choice && choice.message && choice.message.content;
+    if(!content) throw new Error("el modelo no devolvió contenido (¿ID de modelo inválido?)");
+    var parsed = parseAiJsonPayload(content);
+    return buildAiAnalysisResult(parsed, meta, refDate, turns, fullReadable, filename);
   });
 }
 
@@ -2536,8 +2691,11 @@ document.getElementById("imp-analyze").addEventListener("click", function(){
   }
 
   var useAi = document.getElementById("imp-use-ai").checked;
+  var provider = document.getElementById("imp-ai-provider").value;
   var apiKey = document.getElementById("imp-api-key").value.trim();
-  if(useAi && apiKey) saveApiKey(apiKey);
+  var orModel = document.getElementById("imp-or-model").value.trim();
+  if(useAi && apiKey) saveLS(provider === "openrouter" ? OPENROUTER_API_KEY_STORAGE : CLAUDE_API_KEY_STORAGE, apiKey);
+  if(useAi && provider === "openrouter" && orModel) saveLS(OPENROUTER_MODEL_STORAGE, orModel);
 
   function runLocalAnalysis(text){
     statusEl.textContent = "Analizando localmente...";
@@ -2558,8 +2716,12 @@ document.getElementById("imp-analyze").addEventListener("click", function(){
 
   textPromise.then(function(text){
     if(useAi && apiKey){
-      statusEl.textContent = "Analizando con IA (Claude)... puede tardar unos segundos";
-      return aiAnalyzeTranscript(text, file.name, apiKey).then(function(analysis){
+      var providerLabel = provider === "openrouter" ? "OpenRouter (" + (orModel || OR_FALLBACK_MODELS[0].id) + ")" : "Claude";
+      statusEl.textContent = "Analizando con IA (" + providerLabel + ")... puede tardar unos segundos";
+      var aiPromise = provider === "openrouter"
+        ? aiAnalyzeTranscriptOpenRouter(text, file.name, apiKey, orModel)
+        : aiAnalyzeTranscript(text, file.name, apiKey);
+      return aiPromise.then(function(analysis){
         renderImportReview(analysis);
         statusEl.style.display = "none";
         toast("Análisis con IA listo ✓");
