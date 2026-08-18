@@ -1865,6 +1865,11 @@ var KB_SERVICES = {
   general: "General"
 };
 function serviceLabel(code){ return KB_SERVICES[code] || code || ""; }
+function kbServiceOptionsHtml(selected){
+  return Object.keys(KB_SERVICES).map(function(code){
+    return '<option value="'+code+'"'+(code === selected ? " selected" : "")+'>'+esc(KB_SERVICES[code])+'</option>';
+  }).join("");
+}
 
 var editingQaId = null;
 var editingTechniqueId = null;
@@ -2649,6 +2654,17 @@ var KEYPOINT_TRIGGERS = [
   /\bes fundamental\b/i, /\bes un requisito\b/i, /\brequisito (principal|fundamental)\b/i,
   /\brecomendamos\b/i, /\brecomiendo\b/i, /\bhay que ser\b/i, /\ben resumen\b/i
 ];
+var RULE_TRIGGERS = [
+  /\bplazo\b/i, /\bd[ií]as h[aá]biles\b/i, /\bd[ií]as corridos\b/i,
+  /\bart[ií]culo\s+\d+/i, /\bley\s+20\.?720\b/i, /\bverificaci[oó]n de cr[eé]ditos\b/i,
+  /\bimpugnar\b/i, /\bjunta de acreedores\b/i, /\bbolet[ií]n concursal\b/i,
+  /\bcesi[oó]n de (bienes|pago)\b/i, /\brealizaci[oó]n de bienes\b/i
+];
+var TECHNIQUE_TRIGGERS = [
+  /\bsuelo (decir|explicar)les?\b/i, /\bles? explico\b/i, /\bla forma (en )?que lo explico\b/i,
+  /\bconviene decirle\b/i, /\bmanera de (decirlo|explicarlo|comunicarlo)\b/i,
+  /\bpara que (lo )?entienda\b/i, /\bmet[aá]fora\b/i, /\bcomparaci[oó]n\b/i
+];
 var RECURRING_RE = /\bcada\s+(un|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|\d+)\s+(d[ií]as?|semanas?|meses?|mes)\b/i;
 var NUM_WORDS = {un:1,una:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,once:11,doce:12};
 var SCHEDULE_WORDS = /\b(reuni[oó]n|comit[eé]|cita|agendar|agenda)\b/i;
@@ -2683,6 +2699,11 @@ function trimCandidate(s){
   if(s.length > 160) s = s.slice(0, 157) + "...";
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+function trimLongCandidate(s){
+  s = String(s || "").replace(/\s+/g, " ").trim();
+  if(!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 function dedupeByText(arr){
   var seen = {}; var out = [];
   arr.forEach(function(it){
@@ -2698,6 +2719,18 @@ function dedupeStrings(arr){
     if(!seen[key]){ seen[key] = true; out.push(s); }
   });
   return out;
+}
+function dedupeByKey(arr, keyFn){
+  var seen = {}; var out = [];
+  arr.forEach(function(it){
+    var key = keyFn(it).toLowerCase().slice(0, 40);
+    if(!seen[key]){ seen[key] = true; out.push(it); }
+  });
+  return out;
+}
+function extractDeadlinePhrase(s){
+  var m = s.match(/\d+\s*d[ií]as?\s*(h[aá]biles|corridos)?/i);
+  return m ? m[0].trim() : "";
 }
 function uniqueMatches(arr){
   var seen = {}; var out = [];
@@ -2818,6 +2851,8 @@ function analyzeTranscript(rawText, filename){
   var taskCandidates = [];
   var reminderCandidates = [];
   var keyPoints = [];
+  var ruleCandidates = [];
+  var techniqueCandidates = [];
 
   var sourceTurns = turns.length ? turns : [{time:"", speaker:"", text: cleaned}];
 
@@ -2831,6 +2866,8 @@ function analyzeTranscript(rawText, filename){
       var isReminder = interval !== null || REMINDER_TRIGGERS.some(function(re){ return re.test(sentence); }) || (explicitDate && hasScheduleWord);
       var isTask = !isReminder && TASK_TRIGGERS.some(function(re){ return re.test(sentence); });
       var isKey = KEYPOINT_TRIGGERS.some(function(re){ return re.test(sentence); });
+      var isRule = RULE_TRIGGERS.some(function(re){ return re.test(sentence); });
+      var isTechnique = TECHNIQUE_TRIGGERS.some(function(re){ return re.test(sentence); });
 
       if(isReminder){
         reminderCandidates.push({
@@ -2847,8 +2884,44 @@ function analyzeTranscript(rawText, filename){
         });
       }
       if(isKey) keyPoints.push(trimCandidate(sentence));
+      if(isRule){
+        var ruleDetail = trimLongCandidate(sentence);
+        ruleCandidates.push({
+          title: ruleDetail.length > 70 ? ruleDetail.slice(0, 67) + "..." : ruleDetail,
+          detail: ruleDetail,
+          deadline: extractDeadlinePhrase(sentence),
+          service: "general"
+        });
+      }
+      if(isTechnique){
+        var techExample = trimLongCandidate(sentence);
+        techniqueCandidates.push({
+          name: techExample.length > 60 ? techExample.slice(0, 57) + "..." : techExample,
+          description: "Frase detectada como posible técnica de comunicación — revisa y completa la descripción.",
+          example: techExample,
+          whenToUse: ""
+        });
+      }
     });
   });
+
+  var qaCandidates = [];
+  if(turns.length){
+    for(var qi = 0; qi < turns.length - 1; qi++){
+      var qTurn = turns[qi];
+      var qText = (qTurn.text || "").trim();
+      if(!/\?\s*$/.test(qText) || qText.length < 10) continue;
+      var aTurn = turns[qi + 1];
+      var aText = (aTurn && aTurn.text || "").trim();
+      if(aText.length < 10) continue;
+      qaCandidates.push({
+        question: trimLongCandidate(qText),
+        answer: trimLongCandidate(aText),
+        service: "general",
+        tags: []
+      });
+    }
+  }
 
   var mentions = findPersonMentions(fullReadable, meta.participants);
   var emails = uniqueMatches(fullReadable.match(EMAIL_RE) || []);
@@ -2863,6 +2936,9 @@ function analyzeTranscript(rawText, filename){
     taskCandidates: dedupeByText(taskCandidates).slice(0, 25),
     reminderCandidates: dedupeByText(reminderCandidates).slice(0, 15),
     keyPoints: dedupeStrings(keyPoints).slice(0, 10),
+    qaCandidates: dedupeByKey(qaCandidates, function(c){ return c.question; }).slice(0, 15),
+    techniqueCandidates: dedupeByKey(techniqueCandidates, function(c){ return c.example; }).slice(0, 10),
+    ruleCandidates: dedupeByKey(ruleCandidates, function(c){ return c.detail; }).slice(0, 15),
     mentions: mentions,
     emails: emails,
     phones: phones
@@ -2996,6 +3072,62 @@ function renderImportReview(analysis){
     + '</ul><div class="empty-msg">Se guardarán como nota en la bitácora del día.</div></div>';
   }
 
+  if((analysis.qaCandidates || []).length){
+    html += '<div class="card"><div class="section-title">🗣️ Posibles Q&A de clientes (' + analysis.qaCandidates.length + ')</div>'
+      + '<div class="empty-msg">' + (analysis.isAi ? 'Sugeridas por IA — revisa antes de guardar en la Base de Conocimiento.' : 'Detectadas por preguntas seguidas de una respuesta — puede haber ruido, revisa antes de guardar.') + '</div>'
+      + '<ul class="item-list">'
+      + analysis.qaCandidates.map(function(c, i){
+          return '<li class="item"><input type="checkbox" class="imp-qa-check" id="qachk-' + i + '" ' + (analysis.isAi ? "checked" : "") + ' style="margin-top:8px;">'
+            + '<div class="item-main">'
+              + '<div class="quick-form">'
+                + '<div class="field wide"><label>Pregunta</label><input type="text" id="qaq-' + i + '" value="' + esc(c.question) + '"></div>'
+                + '<div class="field wide"><label>Respuesta modelo</label><textarea id="qaa-' + i + '">' + esc(c.answer) + '</textarea></div>'
+                + '<div class="field small"><label>Servicio</label><select id="qasvc-' + i + '">' + kbServiceOptionsHtml(c.service) + '</select></div>'
+              + '</div>'
+            + '</div>'
+          + '</li>';
+        }).join("")
+    + '</ul></div>';
+  }
+
+  if((analysis.techniqueCandidates || []).length){
+    html += '<div class="card"><div class="section-title">🎯 Posibles técnicas de comunicación (' + analysis.techniqueCandidates.length + ')</div>'
+      + '<div class="empty-msg">' + (analysis.isAi ? 'Sugeridas por IA — revisa antes de guardar.' : 'Detectadas por palabras clave — revisa y completa la descripción antes de guardar.') + '</div>'
+      + '<ul class="item-list">'
+      + analysis.techniqueCandidates.map(function(c, i){
+          return '<li class="item"><input type="checkbox" class="imp-technique-check" id="tqchk-' + i + '" ' + (analysis.isAi ? "checked" : "") + ' style="margin-top:8px;">'
+            + '<div class="item-main">'
+              + '<div class="quick-form">'
+                + '<div class="field wide"><label>Nombre corto</label><input type="text" id="tqname-' + i + '" value="' + esc(c.name) + '"></div>'
+                + '<div class="field wide"><label>Descripción</label><textarea id="tqdesc-' + i + '">' + esc(c.description) + '</textarea></div>'
+                + '<div class="field wide"><label>Ejemplo textual real</label><textarea id="tqexample-' + i + '">' + esc(c.example) + '</textarea></div>'
+                + '<div class="field wide"><label>Cuándo aplicarla</label><input type="text" id="tqwhen-' + i + '" value="' + esc(c.whenToUse) + '"></div>'
+              + '</div>'
+            + '</div>'
+          + '</li>';
+        }).join("")
+    + '</ul></div>';
+  }
+
+  if((analysis.ruleCandidates || []).length){
+    html += '<div class="card"><div class="section-title">📐 Posibles reglas / datos técnicos (' + analysis.ruleCandidates.length + ')</div>'
+      + '<div class="empty-msg">' + (analysis.isAi ? 'Sugeridas por IA — revisa antes de guardar.' : 'Detectadas por palabras clave (plazos, artículos, etc.) — revisa antes de guardar.') + '</div>'
+      + '<ul class="item-list">'
+      + analysis.ruleCandidates.map(function(c, i){
+          return '<li class="item"><input type="checkbox" class="imp-rule-check" id="ruchk-' + i + '" ' + (analysis.isAi ? "checked" : "") + ' style="margin-top:8px;">'
+            + '<div class="item-main">'
+              + '<div class="quick-form">'
+                + '<div class="field wide"><label>Regla / dato técnico</label><input type="text" id="rutitle-' + i + '" value="' + esc(c.title) + '"></div>'
+                + '<div class="field wide"><label>Detalle</label><textarea id="rudetail-' + i + '">' + esc(c.detail) + '</textarea></div>'
+                + '<div class="field small"><label>Servicio</label><select id="rusvc-' + i + '">' + kbServiceOptionsHtml(c.service) + '</select></div>'
+                + '<div class="field small"><label>Plazo</label><input type="text" id="rudeadline-' + i + '" value="' + esc(c.deadline || "") + '"></div>'
+              + '</div>'
+            + '</div>'
+          + '</li>';
+        }).join("")
+    + '</ul></div>';
+  }
+
   html += '<div class="row-flex" style="margin-top:6px;margin-bottom:40px;">'
     + '<button class="btn" id="imp-commit">✅ Agregar todo lo seleccionado</button>'
     + '<button class="btn secondary" id="imp-discard">Descartar análisis</button>'
@@ -3016,7 +3148,8 @@ function renderImportReview(analysis){
 
 function commitImport(analysis){
   var project = document.getElementById("imp-project").value.trim();
-  var addedCounts = { tasks: 0, reminders: 0, people: 0, bitacora: 0, correos: 0 };
+  var addedCounts = { tasks: 0, reminders: 0, people: 0, bitacora: 0, correos: 0, qa: 0, techniques: 0, rules: 0 };
+  var kbSource = (document.getElementById("imp-transcript-title").value || "").trim() || analysis.filename || "";
 
   if(project) registerProject(project);
 
@@ -3101,6 +3234,56 @@ function commitImport(analysis){
     addedCounts.reminders++;
   });
 
+  document.querySelectorAll(".imp-qa-check").forEach(function(chk){
+    if(!chk.checked) return;
+    var i = chk.id.replace("qachk-", "");
+    var qEl = document.getElementById("qaq-" + i);
+    if(!qEl) return;
+    var question = qEl.value.trim();
+    var answer = document.getElementById("qaa-" + i).value.trim();
+    if(!question || !answer) return;
+    state.qa.push({
+      id: uid(), question: question, answer: answer,
+      service: document.getElementById("qasvc-" + i).value,
+      tags: [], project: project, source: kbSource, createdAt: todayStr()
+    });
+    addedCounts.qa++;
+  });
+
+  document.querySelectorAll(".imp-technique-check").forEach(function(chk){
+    if(!chk.checked) return;
+    var i = chk.id.replace("tqchk-", "");
+    var nameEl = document.getElementById("tqname-" + i);
+    if(!nameEl) return;
+    var name = nameEl.value.trim();
+    var description = document.getElementById("tqdesc-" + i).value.trim();
+    if(!name || !description) return;
+    state.techniques.push({
+      id: uid(), name: name, description: description,
+      example: document.getElementById("tqexample-" + i).value.trim(),
+      whenToUse: document.getElementById("tqwhen-" + i).value.trim(),
+      project: project, source: kbSource, createdAt: todayStr()
+    });
+    addedCounts.techniques++;
+  });
+
+  document.querySelectorAll(".imp-rule-check").forEach(function(chk){
+    if(!chk.checked) return;
+    var i = chk.id.replace("ruchk-", "");
+    var titleEl = document.getElementById("rutitle-" + i);
+    if(!titleEl) return;
+    var title = titleEl.value.trim();
+    var detail = document.getElementById("rudetail-" + i).value.trim();
+    if(!title || !detail) return;
+    state.rules.push({
+      id: uid(), title: title, detail: detail,
+      service: document.getElementById("rusvc-" + i).value,
+      deadline: document.getElementById("rudeadline-" + i).value.trim(),
+      project: project, source: kbSource, createdAt: todayStr()
+    });
+    addedCounts.rules++;
+  });
+
   var contactNotes = [];
   document.querySelectorAll(".imp-contact-check").forEach(function(chk){
     if(!chk.checked) return;
@@ -3125,6 +3308,9 @@ function commitImport(analysis){
   if(addedCounts.people) parts.push(addedCounts.people + " personas");
   if(addedCounts.bitacora) parts.push("bitácora");
   if(addedCounts.correos) parts.push("correo archivado");
+  if(addedCounts.qa) parts.push(addedCounts.qa + " Q&A");
+  if(addedCounts.techniques) parts.push(addedCounts.techniques + " técnicas");
+  if(addedCounts.rules) parts.push(addedCounts.rules + " reglas");
   toast(parts.length ? "Importado: " + parts.join(", ") + " ✓" : "Nada seleccionado para agregar");
 
   document.getElementById("imp-review").style.display = "none";
@@ -3319,9 +3505,50 @@ var AI_EXTRACTION_SCHEMA = {
         required: ["nombre", "rol", "empresa", "telefono", "correo"],
         additionalProperties: false
       }
+    },
+    preguntas_respuestas: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          pregunta: { type: "string" },
+          respuesta: { type: "string" },
+          servicio: { type: "string", enum: ["cesion", "liquidacion", "defensa", "renegociacion", "general"] }
+        },
+        required: ["pregunta", "respuesta", "servicio"],
+        additionalProperties: false
+      }
+    },
+    tecnicas_comunicacion: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          nombre: { type: "string" },
+          descripcion: { type: "string" },
+          ejemplo: { type: "string" },
+          cuando_aplicarla: { type: "string" }
+        },
+        required: ["nombre", "descripcion", "ejemplo", "cuando_aplicarla"],
+        additionalProperties: false
+      }
+    },
+    reglas_datos_tecnicos: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          regla: { type: "string" },
+          detalle: { type: "string" },
+          servicio: { type: "string", enum: ["cesion", "liquidacion", "defensa", "renegociacion", "general"] },
+          plazo: { type: "string" }
+        },
+        required: ["regla", "detalle", "servicio", "plazo"],
+        additionalProperties: false
+      }
     }
   },
-  required: ["resumen", "aspectos_clave", "cosas_por_estudiar", "tareas", "recordatorios", "personas"],
+  required: ["resumen", "aspectos_clave", "cosas_por_estudiar", "tareas", "recordatorios", "personas", "preguntas_respuestas", "tecnicas_comunicacion", "reglas_datos_tecnicos"],
   additionalProperties: false
 };
 
@@ -3337,9 +3564,12 @@ function buildAiPrompt(transcriptText, refDate, participants){
     + "- tareas: acciones concretas que alguien debe hacer, con prioridad (alta/media/baja) y fecha_vencimiento si se puede inferir (si no aplica, deja fecha_vencimiento como texto vacío).\n"
     + "- recordatorios: avisos puntuales (con fecha) o recurrentes (con cada_dias, ej. cada 14 días); usa tipo 'puntual' o 'recurrente'; deja fecha vacío o cada_dias en 0 según no corresponda.\n"
     + "- personas: personas mencionadas que NO estén ya en la lista de participantes conocidos, con rol, empresa, teléfono y correo si se mencionan (deja vacío lo que no se mencione).\n"
+    + "- preguntas_respuestas: preguntas concretas que el cliente hizo sobre su caso (dudas legales o prácticas) junto con la respuesta que se le dio, para armar una base de conocimiento reutilizable. servicio debe ser uno de: cesion (cesión de pago), liquidacion (liquidación voluntaria), defensa (defensa ejecutiva), renegociacion, o general si no aplica a un servicio específico. Si no hubo preguntas claras de cliente, deja la lista vacía.\n"
+    + "- tecnicas_comunicacion: técnicas o formas de explicar conceptos difíciles que el abogado usó con el cliente (reencuadres, analogías, formas de dar malas noticias, etc.), con un ejemplo textual real tomado de la transcripción y cuándo conviene aplicarla. Si no se detecta ninguna, deja la lista vacía.\n"
+    + "- reglas_datos_tecnicos: reglas, plazos, artículos de ley o datos técnicos concretos mencionados (por ejemplo plazos legales, requisitos, montos, procedimientos de la Ley 20.720). plazo debe indicar el plazo específico si se menciona (ej. '10 días hábiles'), o vacío si no aplica. Si no hay datos técnicos claros, deja la lista vacía.\n"
     + "Ignora saludos, charla trivial y problemas técnicos de la llamada, pero no ignores nada que aporte contexto o conocimiento útil. Responde todo en español.\n\n"
     + "Responde ÚNICAMENTE un objeto JSON válido, sin texto adicional, sin explicaciones y sin bloques de código markdown, con exactamente esta forma:\n"
-    + '{"resumen":"string","aspectos_clave":["string"],"cosas_por_estudiar":["string"],"tareas":[{"titulo":"string","prioridad":"alta|media|baja","fecha_vencimiento":"YYYY-MM-DD o vacío"}],"recordatorios":[{"titulo":"string","tipo":"puntual|recurrente","fecha":"YYYY-MM-DD o vacío","cada_dias":0}],"personas":[{"nombre":"string","rol":"string","empresa":"string","telefono":"string","correo":"string"}]}';
+    + '{"resumen":"string","aspectos_clave":["string"],"cosas_por_estudiar":["string"],"tareas":[{"titulo":"string","prioridad":"alta|media|baja","fecha_vencimiento":"YYYY-MM-DD o vacío"}],"recordatorios":[{"titulo":"string","tipo":"puntual|recurrente","fecha":"YYYY-MM-DD o vacío","cada_dias":0}],"personas":[{"nombre":"string","rol":"string","empresa":"string","telefono":"string","correo":"string"}],"preguntas_respuestas":[{"pregunta":"string","respuesta":"string","servicio":"cesion|liquidacion|defensa|renegociacion|general"}],"tecnicas_comunicacion":[{"nombre":"string","descripcion":"string","ejemplo":"string","cuando_aplicarla":"string"}],"reglas_datos_tecnicos":[{"regla":"string","detalle":"string","servicio":"cesion|liquidacion|defensa|renegociacion|general","plazo":"string"}]}';
 }
 
 function parseAiJsonPayload(raw){
@@ -3382,6 +3612,18 @@ function buildAiAnalysisResult(parsed, meta, refDate, turns, fullReadable, filen
   var phones = uniqueMatches((parsed.personas || []).map(function(p){ return p.telefono; }).filter(Boolean));
   var emails = uniqueMatches((parsed.personas || []).map(function(p){ return p.correo; }).filter(Boolean));
 
+  var qaCandidates = (parsed.preguntas_respuestas || []).map(function(q){
+    return { question: trimLongCandidate(q.pregunta || ""), answer: trimLongCandidate(q.respuesta || ""), service: q.servicio || "general", tags: [] };
+  }).filter(function(q){ return q.question && q.answer; });
+
+  var techniqueCandidates = (parsed.tecnicas_comunicacion || []).map(function(t){
+    return { name: trimLongCandidate(t.nombre || ""), description: trimLongCandidate(t.descripcion || ""), example: trimLongCandidate(t.ejemplo || ""), whenToUse: trimLongCandidate(t.cuando_aplicarla || "") };
+  }).filter(function(t){ return t.name && t.description; });
+
+  var ruleCandidates = (parsed.reglas_datos_tecnicos || []).map(function(r){
+    return { title: trimLongCandidate(r.regla || ""), detail: trimLongCandidate(r.detalle || ""), service: r.servicio || "general", deadline: r.plazo || "" };
+  }).filter(function(r){ return r.title && r.detail; });
+
   return {
     filename: filename,
     meta: meta,
@@ -3392,6 +3634,9 @@ function buildAiAnalysisResult(parsed, meta, refDate, turns, fullReadable, filen
     reminderCandidates: reminderCandidates.slice(0, 20),
     keyPoints: keyPoints.slice(0, 20),
     studyItems: studyItems.slice(0, 15),
+    qaCandidates: qaCandidates.slice(0, 20),
+    techniqueCandidates: techniqueCandidates.slice(0, 15),
+    ruleCandidates: ruleCandidates.slice(0, 20),
     mentions: [],
     aiPeople: aiPeople,
     aiSummary: parsed.resumen || "",
