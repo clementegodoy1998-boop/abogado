@@ -242,6 +242,31 @@
   .project-detail{margin-top:20px;}
   .project-detail h3{font-size:14px;margin:18px 0 8px;}
 
+  /* ---------- recursos ---------- */
+  .resource-section{margin-top:18px;}
+  .resource-section h2{font-size:13px;margin:0 0 10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em;}
+  .resource-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+  .resource-card{background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:14px;display:flex;flex-direction:column;gap:6px;}
+  .resource-card .rs-title{font-weight:700;font-size:14px;}
+  .resource-card .rs-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
+  .resource-card .rs-preview{font-size:12.5px;color:var(--text-muted);white-space:pre-wrap;max-height:60px;overflow:hidden;}
+  .resource-card .rs-actions{margin-top:auto;padding-top:6px;display:flex;gap:6px;}
+  .rs-modal-backdrop{position:fixed;inset:0;background:rgba(15,17,23,.55);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;}
+  .rs-modal{background:var(--surface);border-radius:12px;max-width:820px;width:100%;padding:28px 30px;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.25);}
+  .rs-modal-close{position:absolute;top:14px;right:14px;background:var(--gray-bg);border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:var(--text);}
+  .rs-modal .rs-meta{display:flex;flex-wrap:wrap;gap:6px;}
+  .rs-attachment{margin:6px 0 14px;font-size:13px;}
+  .rs-attachment a{color:var(--accent);}
+  .rs-md{font-size:14px;line-height:1.65;}
+  .rs-md h1,.rs-md h2,.rs-md h3{margin:16px 0 8px;}
+  .rs-md p{margin:0 0 10px;}
+  .rs-md ul,.rs-md ol{margin:0 0 10px 20px;}
+  .rs-md code{background:var(--surface-2);padding:1px 5px;border-radius:4px;font-size:12.5px;}
+  .rs-md pre{background:var(--surface-2);padding:10px 12px;border-radius:7px;overflow:auto;}
+  .rs-md pre code{background:none;padding:0;}
+  .rs-md blockquote{border-left:3px solid var(--accent-light);padding-left:12px;color:var(--text-muted);margin:0 0 10px;}
+  .rs-md a{color:var(--accent);}
+
   /* ---------- misc ---------- */
   .row-flex{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
   #toast{
@@ -279,6 +304,7 @@
     <button data-tab="correos">✉️ Correos</button>
     <button data-tab="proyectos">📁 Proyectos</button>
     <button data-tab="conocimiento">🧠 Base de Conocimiento</button>
+    <button data-tab="recursos">📚 Recursos</button>
     <button data-tab="importar">📥 Importar</button>
   </nav>
   <div id="sidebar-footer">
@@ -672,6 +698,70 @@
     <ul class="item-list" id="list-conocimiento" style="margin-top:14px;"></ul>
   </section>
 
+  <!-- ===================== RECURSOS ===================== -->
+  <section class="tab-panel" id="tab-recursos">
+    <h1 class="page-title">Recursos</h1>
+    <p class="page-sub">Esquemas, pasos a paso, checklists y plantillas por servicio. Pega texto en Markdown y/o adjunta un archivo.</p>
+    <div class="card">
+      <div class="section-title">Nuevo recurso</div>
+      <form class="quick-form" id="form-resource">
+        <div class="field grow">
+          <label>Título</label>
+          <input type="text" id="rs-title" placeholder="Ej: Checklist inicial cesión de pago" required>
+        </div>
+        <div class="field grow">
+          <label>Categoría</label>
+          <select id="rs-category">
+            <option value="esquema">Esquema</option>
+            <option value="pasoapaso">Paso a paso</option>
+            <option value="checklist">Checklist</option>
+            <option value="plantilla">Plantilla</option>
+            <option value="otro">Otro</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label>Servicio</label>
+          <select id="rs-service">
+            <option value="cesion">Cesión de pago</option>
+            <option value="liquidacion">Liquidación voluntaria</option>
+            <option value="defensa">Defensa ejecutiva</option>
+            <option value="renegociacion">Renegociación</option>
+            <option value="general">General</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label>Proyecto / Cliente (opcional)</label>
+          <input type="text" id="rs-project" list="dl-projects" placeholder="Opcional">
+        </div>
+        <div class="field wide">
+          <label>Contenido (Markdown)</label>
+          <textarea id="rs-content" style="min-height:160px;" placeholder="Pega o escribe aquí el contenido en Markdown: # títulos, **negrita**, listas con -, `código`, etc."></textarea>
+        </div>
+        <div class="field wide">
+          <label>Archivo adjunto (opcional)</label>
+          <input type="file" id="rs-file">
+          <div class="page-sub" style="margin:4px 0 0;font-size:11.5px;">El almacenamiento local del navegador tiene un límite aproximado de 5-10 MB en total. Los archivos grandes se advierten o se rechazan automáticamente; siempre puedes guardar solo el texto.</div>
+          <div id="rs-file-info" style="font-size:12px;color:var(--text-muted);margin-top:4px;"></div>
+          <button class="btn ghost btn-sm" type="button" id="rs-remove-attachment" style="display:none;margin-top:4px;">Quitar adjunto</button>
+        </div>
+        <button class="btn" type="submit" id="rs-submit">+ Agregar recurso</button>
+        <button class="btn secondary" type="button" id="rs-cancel" style="display:none;">Cancelar</button>
+      </form>
+    </div>
+    <div class="filters-bar">
+      <select id="f-rs-category">
+        <option value="">Todas las categorías</option>
+        <option value="esquema">Esquema</option>
+        <option value="pasoapaso">Paso a paso</option>
+        <option value="checklist">Checklist</option>
+        <option value="plantilla">Plantilla</option>
+        <option value="otro">Otro</option>
+      </select>
+      <input type="text" id="f-rs-search" placeholder="Buscar en recursos...">
+    </div>
+    <div id="list-recursos" style="margin-top:14px;"></div>
+  </section>
+
   <!-- ===================== IMPORTAR TRANSCRIPCIÓN ===================== -->
   <section class="tab-panel" id="tab-importar">
     <h1 class="page-title">Importar transcripción</h1>
@@ -875,6 +965,7 @@ function allProjectNames(){
   state.qa.forEach(function(x){ if(x.project) set[x.project] = true; });
   state.techniques.forEach(function(x){ if(x.project) set[x.project] = true; });
   state.rules.forEach(function(x){ if(x.project) set[x.project] = true; });
+  state.resources.forEach(function(x){ if(x.project) set[x.project] = true; });
   return Object.keys(set).sort(function(a,b){ return a.localeCompare(b, "es"); });
 }
 
@@ -919,7 +1010,8 @@ var renderers = {
   personas: renderPersonas,
   correos: renderCorreos,
   proyectos: renderProyectos,
-  conocimiento: renderBaseConocimiento
+  conocimiento: renderBaseConocimiento,
+  recursos: renderRecursos
 };
 var autofocusMap = { tareas:"t-title", recordatorios:"r-title", bitacora:"l-text", personas:"p-name", correos:"em-title" };
 
@@ -2045,6 +2137,301 @@ document.getElementById("list-conocimiento").addEventListener("click", function(
 });
 ["f-kb-view","f-kb-service"].forEach(function(id){ document.getElementById(id).addEventListener("change", renderBaseConocimiento); });
 document.getElementById("f-kb-search").addEventListener("input", renderBaseConocimiento);
+
+/* ======================================================================
+   MÓDULO: RECURSOS
+   ====================================================================== */
+var RESOURCE_CATEGORIES = { esquema: "Esquema", pasoapaso: "Paso a paso", checklist: "Checklist", plantilla: "Plantilla", otro: "Otro" };
+var RESOURCE_CATEGORY_ORDER = ["esquema", "pasoapaso", "checklist", "plantilla", "otro"];
+var RESOURCE_SOFT_WARN_BYTES = 1000000;
+var RESOURCE_HARD_BLOCK_BYTES = 4000000;
+
+var editingResourceId = null;
+var editingResourceAttachment = null;
+
+function formatFileSize(bytes){
+  if(bytes < 1024) return bytes + " B";
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(1) + " KB";
+  return (bytes/(1024*1024)).toFixed(2) + " MB";
+}
+
+function mdInline(s){
+  s = s.replace(/`([^`]+)`/g, function(m, c){ return "<code>"+c+"</code>"; });
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url){
+    var safeUrl = /^(https?:|mailto:)/i.test(url) ? url : "#";
+    return '<a href="'+esc(safeUrl)+'" target="_blank" rel="noopener">'+text+"</a>";
+  });
+  return s;
+}
+
+function mdToHtml(src){
+  var lines = esc(src || "").split("\n");
+  var html = [];
+  var inCode = false, codeBuf = [];
+  var listType = null;
+  var paraBuf = [];
+
+  function flushPara(){
+    if(paraBuf.length){ html.push("<p>"+mdInline(paraBuf.join(" "))+"</p>"); paraBuf = []; }
+  }
+  function closeList(){
+    if(listType){ html.push("</"+listType+">"); listType = null; }
+  }
+
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i];
+
+    if(/^```/.test(line)){
+      if(!inCode){ flushPara(); closeList(); inCode = true; codeBuf = []; }
+      else { html.push("<pre><code>"+codeBuf.join("\n")+"</code></pre>"); inCode = false; }
+      continue;
+    }
+    if(inCode){ codeBuf.push(line); continue; }
+
+    if(/^\s*$/.test(line)){ flushPara(); closeList(); continue; }
+
+    var h = line.match(/^(#{1,3})\s+(.*)$/);
+    if(h){
+      flushPara(); closeList();
+      var level = h[1].length;
+      html.push("<h"+level+">"+mdInline(h[2])+"</h"+level+">");
+      continue;
+    }
+
+    var bq = line.match(/^&gt;\s?(.*)$/);
+    if(bq){
+      flushPara(); closeList();
+      html.push("<blockquote>"+mdInline(bq[1])+"</blockquote>");
+      continue;
+    }
+
+    var ul = line.match(/^[-*]\s+(.*)$/);
+    if(ul){
+      flushPara();
+      if(listType !== "ul"){ closeList(); html.push("<ul>"); listType = "ul"; }
+      html.push("<li>"+mdInline(ul[1])+"</li>");
+      continue;
+    }
+    var ol = line.match(/^\d+\.\s+(.*)$/);
+    if(ol){
+      flushPara();
+      if(listType !== "ol"){ closeList(); html.push("<ol>"); listType = "ol"; }
+      html.push("<li>"+mdInline(ol[1])+"</li>");
+      continue;
+    }
+
+    closeList();
+    paraBuf.push(line);
+  }
+  flushPara(); closeList();
+  if(inCode){ html.push("<pre><code>"+codeBuf.join("\n")+"</code></pre>"); }
+  return html.join("\n");
+}
+
+function resetResourceForm(){
+  editingResourceId = null;
+  editingResourceAttachment = null;
+  document.getElementById("form-resource").reset();
+  document.getElementById("rs-file-info").textContent = "";
+  document.getElementById("rs-remove-attachment").style.display = "none";
+  document.getElementById("rs-submit").textContent = "+ Agregar recurso";
+  document.getElementById("rs-cancel").style.display = "none";
+}
+
+function saveResource(data){
+  if(editingResourceId){
+    var r = state.resources.find(function(x){ return x.id === editingResourceId; });
+    if(r) Object.assign(r, data);
+  } else {
+    data.id = uid();
+    data.createdAt = todayStr();
+    state.resources.push(data);
+  }
+  if(data.project) registerProject(data.project);
+  saveState();
+  resetResourceForm();
+  renderAll();
+  toast("Recurso guardado ✓");
+}
+
+document.getElementById("rs-file").addEventListener("change", function(e){
+  var file = e.target.files[0];
+  var info = document.getElementById("rs-file-info");
+  if(!file){ info.textContent = ""; return; }
+  var sizeLabel = formatFileSize(file.size);
+  if(file.size > RESOURCE_HARD_BLOCK_BYTES){
+    toast("⚠️ Archivo muy grande ("+sizeLabel+"). No se adjuntará, se guardará solo el texto.");
+    info.textContent = "";
+    e.target.value = "";
+    return;
+  }
+  if(file.size > RESOURCE_SOFT_WARN_BYTES){
+    var ok = confirm("El archivo pesa "+sizeLabel+". El almacenamiento local del navegador tiene un límite aproximado de 5-10 MB en total. ¿Adjuntarlo de todas formas? (Cancelar = guardar solo el texto)");
+    if(!ok){ info.textContent = ""; e.target.value = ""; return; }
+  }
+  info.textContent = "Archivo: "+file.name+" ("+sizeLabel+")";
+});
+
+document.getElementById("form-resource").addEventListener("submit", function(e){
+  e.preventDefault();
+  var title = document.getElementById("rs-title").value.trim();
+  if(!title){ toast("Escribe un título para el recurso"); return; }
+  var data = {
+    title: title,
+    category: document.getElementById("rs-category").value,
+    service: document.getElementById("rs-service").value,
+    content: document.getElementById("rs-content").value.trim(),
+    project: document.getElementById("rs-project").value.trim()
+  };
+
+  var file = document.getElementById("rs-file").files[0];
+  if(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      data.attachment = { name: file.name, type: file.type, size: file.size, dataUrl: reader.result };
+      saveResource(data);
+    };
+    reader.onerror = function(){
+      toast("⚠️ No se pudo leer el archivo adjunto, se guardó solo el texto");
+      data.attachment = editingResourceAttachment;
+      saveResource(data);
+    };
+    reader.readAsDataURL(file);
+  } else {
+    data.attachment = editingResourceAttachment;
+    saveResource(data);
+  }
+});
+document.getElementById("rs-cancel").addEventListener("click", resetResourceForm);
+document.getElementById("rs-remove-attachment").addEventListener("click", function(){
+  editingResourceAttachment = null;
+  document.getElementById("rs-file-info").textContent = "Adjunto quitado. Se guardará solo el texto.";
+  document.getElementById("rs-remove-attachment").style.display = "none";
+});
+
+function editResource(id){
+  var r = state.resources.find(function(x){ return x.id === id; });
+  if(!r) return;
+  editingResourceId = id;
+  editingResourceAttachment = r.attachment || null;
+  document.getElementById("rs-title").value = r.title;
+  document.getElementById("rs-category").value = r.category || "otro";
+  document.getElementById("rs-service").value = r.service || "general";
+  document.getElementById("rs-content").value = r.content || "";
+  document.getElementById("rs-project").value = r.project || "";
+  document.getElementById("rs-file").value = "";
+  var info = document.getElementById("rs-file-info");
+  var removeBtn = document.getElementById("rs-remove-attachment");
+  if(r.attachment){
+    info.textContent = "Adjunto actual: "+r.attachment.name+" ("+formatFileSize(r.attachment.size||0)+")";
+    removeBtn.style.display = "inline-flex";
+  } else {
+    info.textContent = "";
+    removeBtn.style.display = "none";
+  }
+  document.getElementById("rs-submit").textContent = "Guardar cambios";
+  document.getElementById("rs-cancel").style.display = "inline-flex";
+  document.getElementById("form-resource").scrollIntoView({behavior:"smooth", block:"center"});
+}
+
+function deleteResource(id){
+  if(!confirm("¿Eliminar este recurso?")) return;
+  state.resources = state.resources.filter(function(x){ return x.id !== id; });
+  saveState(); renderAll();
+}
+
+function resourceCardHtml(r){
+  var preview = (r.content || "").slice(0, 140);
+  return '<div class="resource-card" data-id="'+r.id+'">'
+    + '<div class="rs-title">'+esc(r.title)+"</div>"
+    + '<div class="rs-meta">'
+      + '<span class="chip chip-media">'+esc(serviceLabel(r.service))+"</span>"
+      + (r.project ? '<span class="chip chip-project">'+esc(r.project)+"</span>" : "")
+      + (r.attachment ? '<span class="chip chip-tag">📎 '+esc(r.attachment.name)+"</span>" : "")
+    + "</div>"
+    + (preview ? '<div class="rs-preview">'+esc(preview)+(r.content.length > 140 ? "…" : "")+"</div>" : "")
+    + '<div class="rs-actions">'
+      + '<button class="btn secondary btn-sm" data-action="expand-resource" data-id="'+r.id+'">Expandir</button>'
+      + '<button class="btn ghost btn-sm" data-action="edit-resource" data-id="'+r.id+'">✏️</button>'
+      + '<button class="btn ghost btn-sm" data-action="delete-resource" data-id="'+r.id+'">🗑️</button>'
+    + "</div>"
+  + "</div>";
+}
+
+function renderRecursos(){
+  var fCategory = document.getElementById("f-rs-category").value;
+  var q = document.getElementById("f-rs-search").value.trim().toLowerCase();
+
+  var filtered = state.resources.filter(function(r){
+    if(fCategory && r.category !== fCategory) return false;
+    if(q){
+      var hay = (r.title+" "+r.content+" "+serviceLabel(r.service)+" "+(r.project||"")).toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+
+  var container = document.getElementById("list-recursos");
+  if(!filtered.length){
+    container.innerHTML = '<div class="empty-msg">No hay recursos con estos filtros.</div>';
+    return;
+  }
+
+  container.innerHTML = RESOURCE_CATEGORY_ORDER.map(function(cat){
+    var items = filtered.filter(function(r){ return r.category === cat; })
+      .sort(function(a,b){ return a.title.localeCompare(b.title, "es"); });
+    if(!items.length) return "";
+    return '<div class="resource-section"><h2>'+esc(RESOURCE_CATEGORIES[cat])+'</h2><div class="resource-grid">'
+      + items.map(resourceCardHtml).join("") + "</div></div>";
+  }).join("");
+}
+
+function modalEscHandler(e){ if(e.key === "Escape") closeResourceModal(); }
+function closeResourceModal(){
+  var el = document.getElementById("rs-modal-backdrop");
+  if(el) el.remove();
+  document.removeEventListener("keydown", modalEscHandler);
+}
+function openResourceModal(id){
+  var r = state.resources.find(function(x){ return x.id === id; });
+  if(!r) return;
+  var backdrop = document.createElement("div");
+  backdrop.className = "rs-modal-backdrop";
+  backdrop.id = "rs-modal-backdrop";
+  var attachmentHtml = r.attachment
+    ? '<div class="rs-attachment"><a href="'+esc(r.attachment.dataUrl)+'" target="_blank" rel="noopener">📎 '+esc(r.attachment.name)+"</a></div>"
+    : "";
+  backdrop.innerHTML = '<div class="rs-modal">'
+    + '<button class="rs-modal-close" id="rs-modal-close" type="button">✕ Cerrar</button>'
+    + '<div class="rs-meta">'
+      + '<span class="chip chip-media">'+esc(serviceLabel(r.service))+"</span>"
+      + '<span class="chip chip-tag">'+esc(RESOURCE_CATEGORIES[r.category] || r.category)+"</span>"
+      + (r.project ? '<span class="chip chip-project">'+esc(r.project)+"</span>" : "")
+    + "</div>"
+    + '<h1 style="margin:10px 0 14px;">'+esc(r.title)+"</h1>"
+    + attachmentHtml
+    + '<div class="rs-md">'+mdToHtml(r.content || "")+"</div>"
+  + "</div>";
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener("click", function(e){
+    if(e.target === backdrop || e.target.id === "rs-modal-close") closeResourceModal();
+  });
+  document.addEventListener("keydown", modalEscHandler);
+}
+
+document.getElementById("list-recursos").addEventListener("click", function(e){
+  var btn = e.target.closest("button[data-action]");
+  if(!btn) return;
+  var id = btn.getAttribute("data-id");
+  var action = btn.getAttribute("data-action");
+  if(action === "expand-resource") openResourceModal(id);
+  else if(action === "edit-resource") editResource(id);
+  else if(action === "delete-resource") deleteResource(id);
+});
+document.getElementById("f-rs-category").addEventListener("change", renderRecursos);
+document.getElementById("f-rs-search").addEventListener("input", renderRecursos);
 
 /* ======================================================================
    MÓDULO: RESUMEN
