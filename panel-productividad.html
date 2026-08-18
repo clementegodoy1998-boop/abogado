@@ -152,6 +152,7 @@
   .chip-hecha{background:var(--green-bg);color:var(--green);}
   .chip-project{background:var(--accent-light);color:var(--accent-dark);}
   .chip-overdue{background:var(--red);color:#fff;}
+  .chip-tag{background:var(--gray-bg);color:var(--text-muted);}
 
   /* ---------- Forms ---------- */
   .quick-form{
@@ -277,6 +278,7 @@
     <button data-tab="personas">👤 Personas</button>
     <button data-tab="correos">✉️ Correos</button>
     <button data-tab="proyectos">📁 Proyectos</button>
+    <button data-tab="conocimiento">🧠 Base de Conocimiento</button>
     <button data-tab="importar">📥 Importar</button>
   </nav>
   <div id="sidebar-footer">
@@ -569,6 +571,107 @@
     <div class="project-detail" id="project-detail" style="display:none;"></div>
   </section>
 
+  <!-- ===================== BASE DE CONOCIMIENTO ===================== -->
+  <section class="tab-panel" id="tab-conocimiento">
+    <h1 class="page-title">Base de Conocimiento</h1>
+    <p class="page-sub">Preguntas frecuentes de clientes, técnicas de comunicación y reglas o datos técnicos por servicio.</p>
+    <div class="card">
+      <div class="section-title">Nueva entrada</div>
+      <form class="quick-form" id="form-kb">
+        <div class="field grow">
+          <label>Tipo de entrada</label>
+          <select id="kb-view">
+            <option value="qa">Q&amp;A de clientes</option>
+            <option value="technique">Técnica de comunicación</option>
+            <option value="rule">Regla / dato técnico</option>
+          </select>
+        </div>
+        <div class="field grow kb-field-service">
+          <label>Servicio</label>
+          <select id="kb-service">
+            <option value="cesion">Cesión de pago</option>
+            <option value="liquidacion">Liquidación voluntaria</option>
+            <option value="defensa">Defensa ejecutiva</option>
+            <option value="renegociacion">Renegociación</option>
+            <option value="general">General</option>
+          </select>
+        </div>
+
+        <div class="field wide kb-field-qa">
+          <label>Pregunta</label>
+          <input type="text" id="kb-question" placeholder="Ej: ¿Qué pasa con mi vehículo si liquido?">
+        </div>
+        <div class="field wide kb-field-qa">
+          <label>Respuesta modelo</label>
+          <textarea id="kb-answer" placeholder="Respuesta recomendada para usar con clientes..."></textarea>
+        </div>
+        <div class="field grow kb-field-qa">
+          <label>Etiquetas (separadas por coma)</label>
+          <input type="text" id="kb-tags" placeholder="Ej: bienes, vehículo, embargo">
+        </div>
+
+        <div class="field wide kb-field-technique">
+          <label>Nombre corto</label>
+          <input type="text" id="kb-tname" placeholder="Ej: Reencuadre de la deuda como oportunidad">
+        </div>
+        <div class="field wide kb-field-technique">
+          <label>Descripción</label>
+          <textarea id="kb-tdesc" placeholder="En qué consiste la técnica..."></textarea>
+        </div>
+        <div class="field wide kb-field-technique">
+          <label>Ejemplo textual real</label>
+          <textarea id="kb-texample" placeholder="Frase o pasaje textual usado en una reunión real..."></textarea>
+        </div>
+        <div class="field wide kb-field-technique">
+          <label>Cuándo aplicarla</label>
+          <textarea id="kb-twhen" placeholder="Ej: cuando el cliente muestra vergüenza o evita el tema..."></textarea>
+        </div>
+
+        <div class="field wide kb-field-rule">
+          <label>Regla / dato técnico</label>
+          <input type="text" id="kb-rtitle" placeholder="Ej: Plazo para impugnar créditos verificados">
+        </div>
+        <div class="field wide kb-field-rule">
+          <label>Detalle</label>
+          <textarea id="kb-rdetail" placeholder="Explicación, fundamento legal, artículo aplicable..."></textarea>
+        </div>
+        <div class="field grow kb-field-rule">
+          <label>Plazo (si aplica)</label>
+          <input type="text" id="kb-rdeadline" placeholder="Ej: 10 días hábiles">
+        </div>
+
+        <div class="field grow">
+          <label>Proyecto / Cliente (opcional)</label>
+          <input type="text" id="kb-project" list="dl-projects" placeholder="Opcional">
+        </div>
+        <div class="field grow">
+          <label>Fuente (opcional)</label>
+          <input type="text" id="kb-source" placeholder="Ej: reunión con Belén 12/03">
+        </div>
+
+        <button class="btn" type="submit" id="kb-submit">+ Agregar entrada</button>
+        <button class="btn secondary" type="button" id="kb-cancel" style="display:none;">Cancelar</button>
+      </form>
+    </div>
+    <div class="filters-bar">
+      <select id="f-kb-view">
+        <option value="qa">Q&amp;A de clientes</option>
+        <option value="technique">Técnicas de comunicación</option>
+        <option value="rule">Reglas / datos técnicos</option>
+      </select>
+      <select id="f-kb-service">
+        <option value="">Todos los servicios</option>
+        <option value="cesion">Cesión de pago</option>
+        <option value="liquidacion">Liquidación voluntaria</option>
+        <option value="defensa">Defensa ejecutiva</option>
+        <option value="renegociacion">Renegociación</option>
+        <option value="general">General</option>
+      </select>
+      <input type="text" id="f-kb-search" placeholder="Buscar en la base de conocimiento...">
+    </div>
+    <ul class="item-list" id="list-conocimiento" style="margin-top:14px;"></ul>
+  </section>
+
   <!-- ===================== IMPORTAR TRANSCRIPCIÓN ===================== -->
   <section class="tab-panel" id="tab-importar">
     <h1 class="page-title">Importar transcripción</h1>
@@ -671,7 +774,7 @@
 var STORAGE_KEY = "ppd_dashboard_data_v1";
 
 function defaultState(){
-  return { tasks: [], reminders: [], logs: [], people: [], emails: [], projects: [] };
+  return { tasks: [], reminders: [], logs: [], people: [], emails: [], projects: [], qa: [], techniques: [], rules: [], resources: [] };
 }
 
 var state = loadState();
@@ -769,6 +872,9 @@ function allProjectNames(){
   state.people.forEach(function(p){ if(p.company) set[p.company] = true; });
   state.emails.forEach(function(e){ if(e.project) set[e.project] = true; });
   state.logs.forEach(function(l){ if(l.project) set[l.project] = true; });
+  state.qa.forEach(function(x){ if(x.project) set[x.project] = true; });
+  state.techniques.forEach(function(x){ if(x.project) set[x.project] = true; });
+  state.rules.forEach(function(x){ if(x.project) set[x.project] = true; });
   return Object.keys(set).sort(function(a,b){ return a.localeCompare(b, "es"); });
 }
 
@@ -812,7 +918,8 @@ var renderers = {
   bitacora: renderBitacora,
   personas: renderPersonas,
   correos: renderCorreos,
-  proyectos: renderProyectos
+  proyectos: renderProyectos,
+  conocimiento: renderBaseConocimiento
 };
 var autofocusMap = { tareas:"t-title", recordatorios:"r-title", bitacora:"l-text", personas:"p-name", correos:"em-title" };
 
@@ -1654,6 +1761,290 @@ document.getElementById("project-detail").addEventListener("change", function(e)
   var sel = e.target.closest("select[data-action='set-status']");
   if(sel){ cycleTaskStatus(sel.getAttribute("data-id"), sel.value); renderProyectos(); }
 });
+
+/* ======================================================================
+   MÓDULO: BASE DE CONOCIMIENTO
+   ====================================================================== */
+var KB_SERVICES = {
+  cesion: "Cesión de pago",
+  liquidacion: "Liquidación voluntaria",
+  defensa: "Defensa ejecutiva",
+  renegociacion: "Renegociación",
+  general: "General"
+};
+function serviceLabel(code){ return KB_SERVICES[code] || code || ""; }
+
+var editingQaId = null;
+var editingTechniqueId = null;
+var editingRuleId = null;
+
+function currentKbView(){ return document.getElementById("kb-view").value; }
+
+document.getElementById("kb-view").addEventListener("change", updateKbFormFields);
+function updateKbFormFields(){
+  var view = currentKbView();
+  document.querySelectorAll(".kb-field-qa").forEach(function(el){ el.style.display = view === "qa" ? "" : "none"; });
+  document.querySelectorAll(".kb-field-technique").forEach(function(el){ el.style.display = view === "technique" ? "" : "none"; });
+  document.querySelectorAll(".kb-field-rule").forEach(function(el){ el.style.display = view === "rule" ? "" : "none"; });
+  document.querySelectorAll(".kb-field-service").forEach(function(el){ el.style.display = (view === "qa" || view === "rule") ? "" : "none"; });
+}
+updateKbFormFields();
+
+function resetKbForm(){
+  editingQaId = null;
+  editingTechniqueId = null;
+  editingRuleId = null;
+  document.getElementById("form-kb").reset();
+  document.getElementById("kb-submit").textContent = "+ Agregar entrada";
+  document.getElementById("kb-cancel").style.display = "none";
+}
+
+document.getElementById("form-kb").addEventListener("submit", function(e){
+  e.preventDefault();
+  var view = currentKbView();
+  var project = document.getElementById("kb-project").value.trim();
+  var source = document.getElementById("kb-source").value.trim();
+
+  if(view === "qa"){
+    var question = document.getElementById("kb-question").value.trim();
+    var answer = document.getElementById("kb-answer").value.trim();
+    if(!question || !answer){ toast("Completa la pregunta y la respuesta modelo"); return; }
+    var tags = document.getElementById("kb-tags").value.split(",").map(function(t){ return t.trim(); }).filter(Boolean);
+    var data = {
+      service: document.getElementById("kb-service").value,
+      question: question, answer: answer, tags: tags,
+      project: project, source: source
+    };
+    if(editingQaId){
+      var qa = state.qa.find(function(x){ return x.id === editingQaId; });
+      if(qa) Object.assign(qa, data);
+    } else {
+      data.id = uid(); data.createdAt = todayStr();
+      state.qa.push(data);
+    }
+  } else if(view === "technique"){
+    var tname = document.getElementById("kb-tname").value.trim();
+    var tdesc = document.getElementById("kb-tdesc").value.trim();
+    if(!tname || !tdesc){ toast("Completa el nombre y la descripción de la técnica"); return; }
+    var tdata = {
+      name: tname, description: tdesc,
+      example: document.getElementById("kb-texample").value.trim(),
+      whenToUse: document.getElementById("kb-twhen").value.trim(),
+      project: project, source: source
+    };
+    if(editingTechniqueId){
+      var tech = state.techniques.find(function(x){ return x.id === editingTechniqueId; });
+      if(tech) Object.assign(tech, tdata);
+    } else {
+      tdata.id = uid(); tdata.createdAt = todayStr();
+      state.techniques.push(tdata);
+    }
+  } else {
+    var rtitle = document.getElementById("kb-rtitle").value.trim();
+    var rdetail = document.getElementById("kb-rdetail").value.trim();
+    if(!rtitle || !rdetail){ toast("Completa la regla y el detalle"); return; }
+    var rdata = {
+      service: document.getElementById("kb-service").value,
+      title: rtitle, detail: rdetail,
+      deadline: document.getElementById("kb-rdeadline").value.trim(),
+      project: project, source: source
+    };
+    if(editingRuleId){
+      var rule = state.rules.find(function(x){ return x.id === editingRuleId; });
+      if(rule) Object.assign(rule, rdata);
+    } else {
+      rdata.id = uid(); rdata.createdAt = todayStr();
+      state.rules.push(rdata);
+    }
+  }
+
+  if(project) registerProject(project);
+  saveState();
+  resetKbForm();
+  updateKbFormFields();
+  renderAll();
+  toast("Entrada guardada ✓");
+});
+document.getElementById("kb-cancel").addEventListener("click", function(){
+  resetKbForm();
+  updateKbFormFields();
+});
+
+function editQa(id){
+  var qa = state.qa.find(function(x){ return x.id === id; });
+  if(!qa) return;
+  editingTechniqueId = null; editingRuleId = null; editingQaId = id;
+  document.getElementById("kb-view").value = "qa";
+  updateKbFormFields();
+  document.getElementById("kb-service").value = qa.service || "general";
+  document.getElementById("kb-question").value = qa.question;
+  document.getElementById("kb-answer").value = qa.answer;
+  document.getElementById("kb-tags").value = (qa.tags || []).join(", ");
+  document.getElementById("kb-project").value = qa.project || "";
+  document.getElementById("kb-source").value = qa.source || "";
+  document.getElementById("kb-submit").textContent = "Guardar cambios";
+  document.getElementById("kb-cancel").style.display = "inline-flex";
+  document.getElementById("form-kb").scrollIntoView({behavior:"smooth", block:"center"});
+}
+function deleteQa(id){
+  if(!confirm("¿Eliminar esta pregunta y respuesta?")) return;
+  state.qa = state.qa.filter(function(x){ return x.id !== id; });
+  saveState(); renderAll();
+}
+
+function editTechnique(id){
+  var tech = state.techniques.find(function(x){ return x.id === id; });
+  if(!tech) return;
+  editingQaId = null; editingRuleId = null; editingTechniqueId = id;
+  document.getElementById("kb-view").value = "technique";
+  updateKbFormFields();
+  document.getElementById("kb-tname").value = tech.name;
+  document.getElementById("kb-tdesc").value = tech.description;
+  document.getElementById("kb-texample").value = tech.example || "";
+  document.getElementById("kb-twhen").value = tech.whenToUse || "";
+  document.getElementById("kb-project").value = tech.project || "";
+  document.getElementById("kb-source").value = tech.source || "";
+  document.getElementById("kb-submit").textContent = "Guardar cambios";
+  document.getElementById("kb-cancel").style.display = "inline-flex";
+  document.getElementById("form-kb").scrollIntoView({behavior:"smooth", block:"center"});
+}
+function deleteTechnique(id){
+  if(!confirm("¿Eliminar esta técnica?")) return;
+  state.techniques = state.techniques.filter(function(x){ return x.id !== id; });
+  saveState(); renderAll();
+}
+
+function editRule(id){
+  var rule = state.rules.find(function(x){ return x.id === id; });
+  if(!rule) return;
+  editingQaId = null; editingTechniqueId = null; editingRuleId = id;
+  document.getElementById("kb-view").value = "rule";
+  updateKbFormFields();
+  document.getElementById("kb-service").value = rule.service || "general";
+  document.getElementById("kb-rtitle").value = rule.title;
+  document.getElementById("kb-rdetail").value = rule.detail;
+  document.getElementById("kb-rdeadline").value = rule.deadline || "";
+  document.getElementById("kb-project").value = rule.project || "";
+  document.getElementById("kb-source").value = rule.source || "";
+  document.getElementById("kb-submit").textContent = "Guardar cambios";
+  document.getElementById("kb-cancel").style.display = "inline-flex";
+  document.getElementById("form-kb").scrollIntoView({behavior:"smooth", block:"center"});
+}
+function deleteRule(id){
+  if(!confirm("¿Eliminar esta regla?")) return;
+  state.rules = state.rules.filter(function(x){ return x.id !== id; });
+  saveState(); renderAll();
+}
+
+function qaItemHtml(qa){
+  return '<li class="email-card" data-id="'+qa.id+'">'
+    + '<div class="e-head">'
+      + '<span>📅 '+fmtDateShort(qa.createdAt)+'</span>'
+      + '<span class="chip chip-media">'+esc(serviceLabel(qa.service))+'</span>'
+      + (qa.project ? '<span class="chip chip-project">'+esc(qa.project)+'</span>' : '')
+      + (qa.tags && qa.tags.length ? qa.tags.map(function(t){ return '<span class="chip chip-tag">'+esc(t)+'</span>'; }).join("") : "")
+    + '</div>'
+    + '<div class="e-title">'+esc(qa.question)+'</div>'
+    + '<div class="e-text" data-id="'+qa.id+'">'+esc(qa.answer)+'</div>'
+    + (qa.source ? '<div class="page-sub" style="margin:4px 0 0;">Fuente: '+esc(qa.source)+'</div>' : '')
+    + '<div class="e-actions">'
+      + '<button class="btn secondary btn-sm" data-action="toggle-expand" data-id="'+qa.id+'">Ver más / menos</button>'
+      + '<button class="btn ghost btn-sm" data-action="edit-qa" data-id="'+qa.id+'">✏️</button>'
+      + '<button class="btn ghost btn-sm" data-action="delete-qa" data-id="'+qa.id+'">🗑️</button>'
+    + '</div>'
+  + '</li>';
+}
+
+function techniqueItemHtml(t){
+  return '<li class="email-card" data-id="'+t.id+'">'
+    + '<div class="e-head">'
+      + '<span>📅 '+fmtDateShort(t.createdAt)+'</span>'
+      + (t.project ? '<span class="chip chip-project">'+esc(t.project)+'</span>' : '')
+    + '</div>'
+    + '<div class="e-title">'+esc(t.name)+'</div>'
+    + '<div class="e-text" data-id="'+t.id+'">'
+      + esc(t.description)
+      + (t.example ? '\n\nEjemplo: "'+esc(t.example)+'"' : "")
+      + (t.whenToUse ? '\n\nCuándo aplicarla: '+esc(t.whenToUse) : "")
+    + '</div>'
+    + (t.source ? '<div class="page-sub" style="margin:4px 0 0;">Fuente: '+esc(t.source)+'</div>' : '')
+    + '<div class="e-actions">'
+      + '<button class="btn secondary btn-sm" data-action="toggle-expand" data-id="'+t.id+'">Ver más / menos</button>'
+      + '<button class="btn ghost btn-sm" data-action="edit-technique" data-id="'+t.id+'">✏️</button>'
+      + '<button class="btn ghost btn-sm" data-action="delete-technique" data-id="'+t.id+'">🗑️</button>'
+    + '</div>'
+  + '</li>';
+}
+
+function ruleItemHtml(r){
+  return '<li class="email-card" data-id="'+r.id+'">'
+    + '<div class="e-head">'
+      + '<span>📅 '+fmtDateShort(r.createdAt)+'</span>'
+      + '<span class="chip chip-media">'+esc(serviceLabel(r.service))+'</span>'
+      + (r.deadline ? '<span class="chip chip-media">⏳ '+esc(r.deadline)+'</span>' : '')
+      + (r.project ? '<span class="chip chip-project">'+esc(r.project)+'</span>' : '')
+    + '</div>'
+    + '<div class="e-title">'+esc(r.title)+'</div>'
+    + '<div class="e-text" data-id="'+r.id+'">'+esc(r.detail)+'</div>'
+    + (r.source ? '<div class="page-sub" style="margin:4px 0 0;">Fuente: '+esc(r.source)+'</div>' : '')
+    + '<div class="e-actions">'
+      + '<button class="btn secondary btn-sm" data-action="toggle-expand" data-id="'+r.id+'">Ver más / menos</button>'
+      + '<button class="btn ghost btn-sm" data-action="edit-rule" data-id="'+r.id+'">✏️</button>'
+      + '<button class="btn ghost btn-sm" data-action="delete-rule" data-id="'+r.id+'">🗑️</button>'
+    + '</div>'
+  + '</li>';
+}
+
+function renderBaseConocimiento(){
+  var view = document.getElementById("f-kb-view").value;
+  var fService = document.getElementById("f-kb-service").value;
+  var q = document.getElementById("f-kb-search").value.trim().toLowerCase();
+  var container = document.getElementById("list-conocimiento");
+  var list, html;
+
+  if(view === "qa"){
+    list = state.qa.filter(function(x){
+      if(fService && x.service !== fService) return false;
+      if(q && (x.question+" "+x.answer+" "+(x.tags||[]).join(" ")).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    }).sort(function(a,b){ return (b.createdAt||"") < (a.createdAt||"") ? -1 : 1; });
+    html = list.map(qaItemHtml).join("");
+  } else if(view === "technique"){
+    list = state.techniques.filter(function(x){
+      if(q && (x.name+" "+x.description+" "+(x.example||"")+" "+(x.whenToUse||"")).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    }).sort(function(a,b){ return (b.createdAt||"") < (a.createdAt||"") ? -1 : 1; });
+    html = list.map(techniqueItemHtml).join("");
+  } else {
+    list = state.rules.filter(function(x){
+      if(fService && x.service !== fService) return false;
+      if(q && (x.title+" "+x.detail+" "+(x.deadline||"")).toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    }).sort(function(a,b){ return (b.createdAt||"") < (a.createdAt||"") ? -1 : 1; });
+    html = list.map(ruleItemHtml).join("");
+  }
+
+  document.getElementById("f-kb-service").style.display = (view === "technique") ? "none" : "";
+  container.innerHTML = list.length ? html : '<div class="empty-msg">No hay entradas con estos filtros.</div>';
+}
+
+document.getElementById("list-conocimiento").addEventListener("click", function(e){
+  var btn = e.target.closest("button[data-action]");
+  if(!btn) return;
+  var id = btn.getAttribute("data-id");
+  var action = btn.getAttribute("data-action");
+  if(action === "toggle-expand"){
+    var txt = document.querySelector('#list-conocimiento .e-text[data-id="'+id+'"]');
+    if(txt) txt.classList.toggle("expanded");
+  } else if(action === "edit-qa") editQa(id);
+  else if(action === "delete-qa") deleteQa(id);
+  else if(action === "edit-technique") editTechnique(id);
+  else if(action === "delete-technique") deleteTechnique(id);
+  else if(action === "edit-rule") editRule(id);
+  else if(action === "delete-rule") deleteRule(id);
+});
+["f-kb-view","f-kb-service"].forEach(function(id){ document.getElementById(id).addEventListener("change", renderBaseConocimiento); });
+document.getElementById("f-kb-search").addEventListener("input", renderBaseConocimiento);
 
 /* ======================================================================
    MÓDULO: RESUMEN
