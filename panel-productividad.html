@@ -1756,13 +1756,17 @@ function projectCounts(name){
     reminders: state.reminders.filter(function(r){ return r.project === name; }).length,
     people: state.people.filter(function(p){ return p.company === name; }).length,
     emails: state.emails.filter(function(e){ return e.project === name; }).length,
-    logs: state.logs.filter(function(l){ return l.project === name; }).length
+    logs: state.logs.filter(function(l){ return l.project === name; }).length,
+    qa: state.qa.filter(function(x){ return x.project === name; }).length,
+    techniques: state.techniques.filter(function(x){ return x.project === name; }).length,
+    rules: state.rules.filter(function(x){ return x.project === name; }).length,
+    resources: state.resources.filter(function(x){ return x.project === name; }).length
   };
 }
 
 function deleteProjectTag(name){
   var c = projectCounts(name);
-  var total = c.tasks + c.reminders + c.people + c.emails + c.logs;
+  var total = c.tasks + c.reminders + c.people + c.emails + c.logs + c.qa + c.techniques + c.rules + c.resources;
   if(total > 0){
     toast("No se puede eliminar: hay elementos que usan \""+name+"\"");
     return;
@@ -1777,7 +1781,7 @@ function projectCardHtml(name){
   var c = projectCounts(name);
   return '<div class="project-card '+(activeProject===name?"active":"")+'" data-name="'+esc(name)+'">'
     + '<div class="pj-name">📁 '+esc(name)+'</div>'
-    + '<div class="pj-counts">'+c.tasks+' tareas · '+c.reminders+' recordatorios · '+c.people+' personas · '+c.emails+' correos · '+c.logs+' notas</div>'
+    + '<div class="pj-counts">'+c.tasks+' tareas · '+c.reminders+' recordatorios · '+c.people+' personas · '+c.emails+' correos · '+c.logs+' notas · '+(c.qa+c.techniques+c.rules)+' base de conocimiento · '+c.resources+' recursos</div>'
   + '</div>';
 }
 
@@ -1800,6 +1804,10 @@ function renderProyectos(){
   var people = state.people.filter(function(p){ return p.company === name; });
   var emails = state.emails.filter(function(e){ return e.project === name; }).sort(function(a,b){ return (b.date||"") < (a.date||"") ? -1 : 1; });
   var logs = state.logs.filter(function(l){ return l.project === name; }).sort(function(a,b){ return (b.date||"") < (a.date||"") ? -1 : 1; });
+  var qaItems = state.qa.filter(function(x){ return x.project === name; });
+  var techniqueItems = state.techniques.filter(function(x){ return x.project === name; });
+  var ruleItems = state.rules.filter(function(x){ return x.project === name; });
+  var resourceItems = state.resources.filter(function(x){ return x.project === name; });
 
   detail.innerHTML = '<div class="row-flex"><h2 style="margin:0;">📁 '+esc(name)+'</h2>'
       + '<button class="btn ghost btn-sm" data-action="delete-project" data-name="'+esc(name)+'">🗑️ Quitar proyecto</button></div>'
@@ -1814,7 +1822,13 @@ function renderProyectos(){
     + '<h3>📓 Bitácora ('+logs.length+')</h3>'
     + (logs.length ? logs.map(function(l){
         return '<div class="log-entry"><div class="log-meta">'+fmtDateShort(l.date)+' '+(l.time||"")+'</div><div class="log-text">'+esc(l.text)+'</div></div>';
-      }).join("") : '<div class="empty-msg">Sin notas.</div>');
+      }).join("") : '<div class="empty-msg">Sin notas.</div>')
+    + '<h3>🧠 Base de conocimiento ('+(qaItems.length+techniqueItems.length+ruleItems.length)+')</h3>'
+    + '<ul class="item-list">'+((qaItems.length+techniqueItems.length+ruleItems.length)
+        ? qaItems.map(qaItemHtml).join("") + techniqueItems.map(techniqueItemHtml).join("") + ruleItems.map(ruleItemHtml).join("")
+        : '<div class="empty-msg">Sin entradas.</div>')+'</ul>'
+    + '<h3>📚 Recursos ('+resourceItems.length+')</h3>'
+    + (resourceItems.length ? '<div class="resource-grid">'+resourceItems.map(resourceCardHtml).join("")+'</div>' : '<div class="empty-msg">Sin recursos.</div>');
 }
 
 document.getElementById("list-proyectos").addEventListener("click", function(e){
@@ -1848,6 +1862,15 @@ document.getElementById("project-detail").addEventListener("click", function(e){
     if(txt) txt.classList.toggle("expanded");
   } else if(action === "edit-email"){ editEmail(id); switchTab("correos"); }
   else if(action === "delete-email"){ deleteEmail(id); renderProyectos(); }
+  else if(action === "edit-qa"){ editQa(id); switchTab("conocimiento"); }
+  else if(action === "delete-qa"){ deleteQa(id); renderProyectos(); }
+  else if(action === "edit-technique"){ editTechnique(id); switchTab("conocimiento"); }
+  else if(action === "delete-technique"){ deleteTechnique(id); renderProyectos(); }
+  else if(action === "edit-rule"){ editRule(id); switchTab("conocimiento"); }
+  else if(action === "delete-rule"){ deleteRule(id); renderProyectos(); }
+  else if(action === "expand-resource"){ openResourceModal(id); }
+  else if(action === "edit-resource"){ editResource(id); switchTab("recursos"); }
+  else if(action === "delete-resource"){ deleteResource(id); renderProyectos(); }
 });
 document.getElementById("project-detail").addEventListener("change", function(e){
   var sel = e.target.closest("select[data-action='set-status']");
